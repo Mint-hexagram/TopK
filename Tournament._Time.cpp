@@ -3,29 +3,34 @@
 #include<iostream>
 #include<chrono>
 #include <fstream>
+#include <climits>
+#include<cstdio>
+#define lson (x*2)
+#define rson (x*2+1)
 
-#define int long long
+const int MAXN=1e7+100000;
+
 using namespace std;
 typedef struct Node{
-    double L; //端内最小前缀和
-    double R; //段内最大前缀和
-    double val; //最大解
-    Node *lc = nullptr; //左子节点
-    Node *rc = nullptr; //右子节点
-    int idx_L; //L所在的索引
-    
+    double L; 
+    double R; 
+    double val; 
+    int idx_L; 
     int idx_R;
-    int from; //本节点的开始
+    int from; 
     int to;
-    int val_from; //val所在范围的开始
+    int val_from; 
     int val_to;
-    bool is_hole = false; //是否存在hole
+    bool is_hole = false; 
 }node;
-int n = 12,w,s,k=400; //n的大小
+node Nodes[4000000+400];
+int n = 12,w,s,k=400;
 
 struct HeapNode{
     double value;
     int l,r;
+    HeapNode() : value(0.0), l(0), r(0) {}
+    HeapNode(double v, int left, int right) : value(v), l(left), r(right) {}
 };
 
 class TopKHeap{
@@ -80,192 +85,132 @@ TopKHeap* Max_TopKHead = new TopKHeap();
 
 
 
-vector<double> input; // 输入
-vector<double> prefix; //前缀
-//初始化的过程
-void init() {
-    //n = 12;
-    input.resize(n);
-    prefix.resize(n);
-    int tmp[] = {3,51,-41,-57,52,59,-11,93,-55,-71,21,21};
-    for (int i = 0;i<n;i++) {
-        input[i] = tmp[i];
-        if(i == 0) prefix[i] = input[i];
-        else prefix[i] = prefix[i-1] + input[i];
-    }
-}
-void init2() {
-    n = 10000000;
-    input.resize(n);
-    prefix.resize(n);
-    for(int i = 0;i<n;i++) {
-        input[i] = (-100+(rand()%200));
-        if(i == 0) prefix[i] = input[i];
-        else prefix[i] = prefix[i-1] + input[i];
-    }
-}
+double  input[MAXN];
+double  prefix[MAXN];
 
 
 
-node* build(int l,int r) {
-    //叶子节点初始化
+void build(int x,int l,int r) {
+
     if(l == r) {
         //node tmp = {l,r,input[l],nullptr,nullptr};
-        node *tmp = new node;
-        tmp->L = prefix[l] - input[l];
-        tmp->R = prefix[l];
-        tmp->val = input[l];
-        tmp->from = l;
-        tmp->to = r;
-        tmp->val_from = l;
-        tmp->val_to = r;
-        tmp->idx_L = l;
-        tmp->idx_R = r;
-        return tmp;
-    }
-    //递归建树
-    int mid = (l + r - 1) / 2;
-    node *tmp1 = build(l,mid);
-    node *tmp2 = build(mid + 1,r);
-    //确定L和R
-    node* newNode = new node;
-    if (tmp1->L >= tmp2->L) {
-        newNode->L = tmp2->L;
-        newNode->idx_L = tmp2->idx_L;
-    }else {
-        newNode->L = tmp1->L;
-        newNode->idx_L = tmp1->idx_L;
-    }
-    if (tmp1->R >= tmp2->R) {
-        newNode->R = tmp1->R;
-        newNode->idx_R = tmp1->idx_R;
-    }else {
-        newNode->R = tmp2->R;
-        newNode->idx_R = tmp2->idx_R;
-    }
-    //确定val
-    if (tmp1->val>tmp2->val||(tmp1->val == tmp2->val && tmp1->val_to - tmp1->val_from < tmp2->val_to - tmp2->val_from)) {
-        newNode->val = tmp1->val;
-        newNode->val_from = tmp1->val_from;
-        newNode->val_to = tmp1->val_to;
-    }else {
-        newNode->val = tmp2->val;
-        newNode->val_from = tmp2->val_from;
-        newNode->val_to = tmp2->val_to;
-    }
-    if (tmp2->R-tmp1->L>newNode->val||
-        (tmp2->R-tmp1->L == newNode->val && 
-            (tmp2->idx_R - tmp1->idx_L < newNode->val_to - newNode->val_from||
-                (tmp2->idx_R - tmp1->idx_L == newNode->val_to - newNode->val_from&&tmp1->idx_L > newNode->val_from)))) {
-        newNode->val = tmp2->R-tmp1->L;
-        newNode->val_from = tmp1->idx_L;
-        newNode->val_to = tmp2->idx_R;
-    }
-    //确定其他变量值
-    newNode->lc = tmp1;
-    newNode->rc = tmp2;
-    newNode->from = l;
-    newNode->to = r;
-
-    //cout<<l<<' '<<r<<' '<<newNode->val<<endl;
-    return newNode;
-}
-void update(node *n,int hole_l,int hole_r) {
-    //如果这段和洞毫无重叠
-    if(n->from>hole_r||n->to<hole_l) return;
-    //如果完全被覆盖
-    if(n->from>=hole_l&&n->to<=hole_r) {
-        n->is_hole = true;
-        n->val = INT_MIN;
-        n->L = INT_MAX;
-        n->R = INT_MIN;
+        Nodes[x].L = prefix[l] - input[l];
+        Nodes[x].R = prefix[l];
+        Nodes[x].val = input[l];
+        Nodes[x].from = l;
+        Nodes[x].to = r;
+        Nodes[x].val_from = l;
+        Nodes[x].val_to = r;
+        Nodes[x].idx_L = l;
+        Nodes[x].idx_R = r;
         return;
     }
-    //如果是一个已经被别的洞完全覆盖的节点
-    if(n->is_hole == true&&n->val == INT_MIN&&n->L == INT_MAX&&n->R == INT_MIN) return;
-    //更新子节点
-    update(n->lc,hole_l,hole_r);
-    update(n->rc,hole_l,hole_r);
-    //反过来更新父节点 这里是确定新的L和R的值
-    if(n->rc->is_hole) n->L = n->rc->L,n->idx_L = n->rc->idx_L;
-    else {
-        //n->L = min(n->rc->L,n->lc->L);
-        if(n->lc->L >= n->rc->L) {
-            n->L = n->rc->L;
-            n->idx_L = n->rc->idx_L;
-        }else {
-            n->L = n->lc->L;
-            n->idx_L = n->lc->idx_L;
-        }
-    }
-    if(n->lc->is_hole) n->R = n->lc->R,n->idx_R = n->lc->idx_R;
-    else {
-        //n->R = max(n->rc->R,n->lc->R);
-        if(n->lc->R >= n->rc->R) {
-            n->R = n->lc->R;
-            n->idx_R = n->lc->idx_R;
-        }else {
-            n->R = n->rc->R;
-            n->idx_R = n->rc->idx_R;
-        }
-    }
-    //确定是否有洞
-    if(n->lc->is_hole||n->rc->is_hole) n->is_hole = true;
-    //确定新的val值 和val_from val_to
-    node *tmp1 = n->lc;
-    node *tmp2 = n->rc;
-    if (tmp1->val>tmp2->val||(tmp1->val == tmp2->val && tmp1->val_to - tmp1->val_from < tmp2->val_to - tmp2->val_from)) {
-        n->val = tmp1->val;
-        n->val_from = tmp1->val_from;
-        n->val_to = tmp1->val_to;
+
+    int mid = (l + r - 1) / 2;
+    build(lson,l,mid);
+    build(rson,mid + 1,r);
+
+    if (Nodes[lson].L >= Nodes[rson].L) {
+        Nodes[x].L = Nodes[rson].L;
+        Nodes[x].idx_L = Nodes[rson].idx_L;
     }else {
-        n->val = tmp2->val;
-        n->val_from = tmp2->val_from;
-        n->val_to = tmp2->val_to;
+        Nodes[x].L = Nodes[lson].L;
+        Nodes[x].idx_L = Nodes[lson].idx_L;
     }
-    if (tmp2->R-tmp1->L>n->val||
-        (tmp2->R-tmp1->L == n->val && 
-            (tmp2->idx_R - tmp1->idx_L < n->val_to - n->val_from||
-                (tmp2->idx_R - tmp1->idx_L == n->val_to - n->val_from&&tmp1->idx_L > n->val_from)))) {
-        n->val = tmp2->R-tmp1->L;
-        n->val_from = tmp1->idx_L;
-        n->val_to = tmp2->idx_R;
+    if (Nodes[lson].R >= Nodes[rson].R) {
+        Nodes[x].R = Nodes[lson].R;
+        Nodes[x].idx_R = Nodes[lson].idx_R;
+    }else {
+        Nodes[x].R = Nodes[rson].R;
+        Nodes[x].idx_R = Nodes[rson].idx_R;
     }
-    //cout<<n->from<<' '<<n->to<<' '<<n->idx_L<<' '<<n->idx_R<<' '<<n->L<<' '<<n->R<<' '<<n->val<<endl;
-}
-//run!!!!!
-void run() { 
-    clock_t start = clock();
-    node *root = build(0,n-1);
-    clock_t end_1 = clock();
-    //cout<<root->val;
 
-    while (root->val>0) {
-//        cout<<root->val_from<<' '<<root->val_to<<' '<<root->val<<endl;
-        Max_TopKHead->cal_topk((HeapNode){root->val,root->val_from,root->val_to});
-        update(root,root->val_from ,root->val_to);
-        //cout<<root->val_from<<' '<<root->val_to<<' '<<root->val<<endl;
+    if (Nodes[lson].val>Nodes[rson].val||(Nodes[lson].val == Nodes[rson].val && Nodes[lson].val_to - Nodes[lson].val_from < Nodes[rson].val_to - Nodes[rson].val_from)) {
+        Nodes[x].val = Nodes[lson].val;
+        Nodes[x].val_from = Nodes[lson].val_from;
+        Nodes[x].val_to = Nodes[lson].val_to;
+    }else {
+        Nodes[x].val = Nodes[rson].val;
+        Nodes[x].val_from = Nodes[rson].val_from;
+        Nodes[x].val_to = Nodes[rson].val_to;
     }
-    clock_t end_2 = clock();
-    //cout<<"build time:"<<end_1 - start<<"ms run_time:"<<end_2-end_1<<"ms"<<endl;
-}
-void py_input(){
-    cin>>n;
-    input.resize(n);
-    prefix.resize(n);
+    if (Nodes[rson].R-Nodes[lson].L>Nodes[x].val||
+        (Nodes[rson].R-Nodes[lson].L == Nodes[x].val && 
+            (Nodes[rson].idx_R - Nodes[lson].idx_L < Nodes[x].val_to - Nodes[x].val_from||
+                (Nodes[rson].idx_R - Nodes[lson].idx_L == Nodes[x].val_to - Nodes[x].val_from&&Nodes[lson].idx_L > Nodes[x].val_from)))) {
+        Nodes[x].val = Nodes[rson].R-Nodes[lson].L;
+        Nodes[x].val_from = Nodes[lson].idx_L;
+        Nodes[x].val_to = Nodes[rson].idx_R;
+    }
 
-    for(int i = 0;i<n;i++){
-        cin>>input[i];
-        if(i == 0) prefix[i] = input[i];
-        else prefix[i] = prefix[i-1] + input[i];
+    Nodes[x].from = l;
+    Nodes[x].to = r;
+
+    //cout<<l<<' '<<r<<' '<<newNode->val<<endl;
+}
+void update(int x,int hole_l,int hole_r) {
+
+    if(Nodes[x].from>hole_r||Nodes[x].to<hole_l) return;
+
+    if(Nodes[x].from>=hole_l&&Nodes[x].to<=hole_r) {
+        Nodes[x].is_hole = true;
+        Nodes[x].val = INT_MIN;
+        Nodes[x].L = INT_MAX;
+        Nodes[x].R = INT_MIN;
+        return;
+    }
+
+    if(Nodes[x].is_hole == true&&Nodes[x].val == INT_MIN&&Nodes[x].L == INT_MAX&&Nodes[x].R == INT_MIN) return;
+
+    update(lson,hole_l,hole_r);
+    update(rson,hole_l,hole_r);
+
+    if(Nodes[rson].is_hole) Nodes[x].L = Nodes[rson].L,Nodes[x].idx_L = Nodes[rson].idx_L;
+    else {
+
+        if(Nodes[lson].L >= Nodes[rson].L) {
+            Nodes[x].L = Nodes[rson].L;
+            Nodes[x].idx_L = Nodes[rson].idx_L;
+        }else {
+            Nodes[x].L = Nodes[lson].L;
+            Nodes[x].idx_L = Nodes[lson].idx_L;
+        }
+    }
+    if(Nodes[lson].is_hole) Nodes[x].R = Nodes[lson].R,Nodes[x].idx_R = Nodes[lson].idx_R;
+    else {
+
+        if(Nodes[lson].R >= Nodes[rson].R) {
+            Nodes[x].R = Nodes[lson].R;
+            Nodes[x].idx_R = Nodes[lson].idx_R;
+        }else {
+            Nodes[x].R = Nodes[rson].R;
+            Nodes[x].idx_R = Nodes[rson].idx_R;
+        }
+    }
+
+    if(Nodes[lson].is_hole||Nodes[rson].is_hole) Nodes[x].is_hole = true;
+
+    if (Nodes[lson].val>Nodes[rson].val||(Nodes[lson].val == Nodes[rson].val && Nodes[lson].val_to - Nodes[lson].val_from < Nodes[rson].val_to - Nodes[rson].val_from)) {
+        Nodes[x].val = Nodes[lson].val;
+        Nodes[x].val_from = Nodes[lson].val_from;
+        Nodes[x].val_to = Nodes[lson].val_to;
+    }else {
+        Nodes[x].val = Nodes[rson].val;
+        Nodes[x].val_from = Nodes[rson].val_from;
+        Nodes[x].val_to = Nodes[rson].val_to;
+    }
+    if (Nodes[rson].R-Nodes[lson].L>Nodes[x].val||
+        (Nodes[rson].R-Nodes[lson].L == Nodes[x].val && 
+            (Nodes[rson].idx_R - Nodes[lson].idx_L < Nodes[x].val_to - Nodes[x].val_from||
+                (Nodes[rson].idx_R - Nodes[lson].idx_L == Nodes[x].val_to - Nodes[x].val_from&&Nodes[lson].idx_L > Nodes[x].val_from)))) {
+        Nodes[x].val = Nodes[rson].R-Nodes[lson].L;
+        Nodes[x].val_from = Nodes[lson].idx_L;
+        Nodes[x].val_to = Nodes[rson].idx_R;
     }
 }
-void DataInit_input(){ //李浩民专属输入
-//    n = 1000;
-//    w = 1000;
-//    s = 1;
 
-    vector<double> a(n+1);
+double a[MAXN];
+void DataInit_input(){
     a[0] = 0;
     for(int i=1;i<=n;++i){
         scanf("%lf",&a[i]);
@@ -282,88 +227,81 @@ void run2(){
     
     while (1)
     {
-        //clock_t start = clock();
-        node *root = build(LL,RR);
-        //clock_t end = clock();
-        while (root->val>0) {
-            cout<<root->val_from<<' '<<root->val_to<<' '<<root->val<<endl;
-            update(root,root->val_from ,root->val_to);
-            //cout<<root->val_from<<' '<<root->val_to<<' '<<root->val<<endl;
+        build(1,LL,RR);
+        int cnt=0;
+        while (Nodes[1].val>0) {
+            HeapNode h;
+            h.value=Nodes[1].val;
+            h.l = Nodes[1].val_from;
+            h.r = Nodes[1].val_to;
+            Max_TopKHead->cal_topk(h);
+            update(1,Nodes[1].val_from ,Nodes[1].val_to);
+            ++cnt;
+            if(cnt>k) break;
         }
         LL += s;
         RR += s;
         Max_TopKHead->siz = 0;
         if(RR >= n - 2){
             RR = n - 2;
-            node *root = build(LL,RR);
-            while (root->val>0) {
-//                cout<<root->val_from<<' '<<root->val_to<<' '<<root->val<<endl;
-                Max_TopKHead->cal_topk((HeapNode){root->val,root->val_from,root->val_to});
-                update(root,root->val_from ,root->val_to);
-                //cout<<root->val_from<<' '<<root->val_to<<' '<<root->val<<endl;
+            build(1,LL,RR);
+            while (Nodes[1].val>0) {
+               HeapNode h;
+                h.value=Nodes[1].val;
+                h.l = Nodes[1].val_from;
+                h.r = Nodes[1].val_to;
+                Max_TopKHead->cal_topk(h);
+                update(1,Nodes[1].val_from ,Nodes[1].val_to);
+                ++cnt;
+                if(cnt>k) break;
             }
             break;
         }
-        break;
     }
-    //这里while是输出全部值大于0的输出，当然你也可以改成for循环找topk
-    
 
 }
 
-void A_High_DataInit_input(){
-    freopen("A_total.txt","r",stdin);
-}
+void A_High_DataInit_input(){freopen("A_total.txt","r",stdin);}
+void B_High_DataInit_input(){freopen("B_total.txt","r",stdin);}
+void C_High_DataInit_input(){freopen("C_total.txt","r",stdin);}
+void D_High_DataInit_input(){freopen("D_total.txt","r",stdin);}
+void E_High_DataInit_input(){freopen("E_total.txt","r",stdin);}
+void F_High_DataInit_input(){freopen("input_new.txt","r",stdin);}
+void normal_DataInit_input(){freopen("normal_input.txt","r",stdin);}
+void uniform_DataInit_input(){freopen("uniform_input.txt","r",stdin);}
+void trip_DataInit_input(){freopen("trip_counts_sequence.txt","r",stdin);}
 
-void B_High_DataInit_input(){
-    freopen("B_total.txt","r",stdin);
-}
-
-void C_High_DataInit_input(){
-    freopen("C_total.txt","r",stdin);
-}
-
-void D_High_DataInit_input(){
-    freopen("D_total.txt","r",stdin);
-}
-
-void E_High_DataInit_input(){
-    freopen("E_total.txt","r",stdin);
-}
-void F_High_DataInit_input(){
-    freopen("input_new.txt","r",stdin);
-}
-
-
-void High_DataInit_input(){
-    freopen("high_input.txt","r",stdin);
-}
-
-void normal_DataInit_input(){
-    freopen("normal_input.txt","r",stdin);
-}
-
-void uniform_DataInit_input(){
-    freopen("uniform_input.txt","r",stdin);
-}
-
-void trip_DataInit_input(){
-    freopen("trip_counts_sequence.txt","r",stdin);
+void choose_data(int n){
+    if(n==7107586) A_High_DataInit_input();
+    if(n==9028998) B_High_DataInit_input();
+    if(n==4087684) C_High_DataInit_input();
+    if(n==5506870) D_High_DataInit_input();
+    if(n==3943016) E_High_DataInit_input();
+    if(n==9987840) trip_DataInit_input();
+    if(n==10000000) normal_DataInit_input();
+    if(n==9999999) uniform_DataInit_input();        
 }
 
 
 
-signed main()
+int main(int argc, char* argv[])
 {
-        n=2000000;
+    if(argc<2){
+        n=7000000;
         w=600000;
-        s=50;
-        k=20;
+        s=2000;
+        freopen("A_total.txt","r",stdin);
+    }
+    else{
+        n=std::atoi(argv[1]);
+        w=std::atoi(argv[2]);
+        s=std::atoi(argv[3]);
+        k=std::atoi(argv[4]);
+    }
 
-    C_High_DataInit_input();
+    choose_data(n);
 
     DataInit_input();
-    freopen("OOOOOOFFFFFF.txt","a",stdout);
 
     auto start = std::chrono::high_resolution_clock::now();
 
@@ -372,10 +310,7 @@ signed main()
     auto end = std::chrono::high_resolution_clock::now();
     std::chrono::duration<double> duration = end - start;
 
+    printf("%lf",duration.count());
 
-    cout << duration.count() << std::endl;
-
-
-    
     return 0;
 }
